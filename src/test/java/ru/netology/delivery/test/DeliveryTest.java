@@ -1,0 +1,74 @@
+package ru.netology.delivery.test;
+
+import com.codeborne.selenide.Condition;
+import com.codeborne.selenide.SelenideElement;
+import com.codeborne.selenide.logevents.SelenideLogger;
+import com.github.javafaker.Faker;
+import io.qameta.allure.selenide.AllureSelenide;
+import org.junit.jupiter.api.*;
+import org.openqa.selenium.Keys;
+import ru.netology.delivery.data.DataGenerator;
+
+import java.time.Duration;
+import java.util.Locale;
+
+import static com.codeborne.selenide.Condition.exactText;
+import static com.codeborne.selenide.Condition.visible;
+import static com.codeborne.selenide.Selectors.withText;
+import static com.codeborne.selenide.Selenide.*;
+
+class DeliveryTest {
+
+    @BeforeAll
+    static void setUpAll() { SelenideLogger.addListener("allure", new AllureSelenide()); }
+
+    @AfterAll
+    static void tearDownAll() { SelenideLogger.removeListener("allure"); }
+
+    @BeforeEach
+    void setup() {
+        open("http://localhost:9999");
+        Faker faker = new Faker(new Locale("ru"));
+    }
+
+    @Test
+    @DisplayName("Should successful plan and replan meeting")
+    void shouldSuccessfulPlanAndReplanMeeting() {
+        var daysToAddForFirstMeeting = 4;
+        var firstMeetingDate = DataGenerator.generateDate(daysToAddForFirstMeeting, "dd.MM.yyyy");
+        var daysToAddForSecondMeeting = 7;
+        var secondMeetingDate = DataGenerator.generateDate(daysToAddForSecondMeeting, "dd.MM.yyyy");
+        var validCity = DataGenerator.generateCity("ru");
+        var validName = DataGenerator.generateName("ru");
+        var validPhone = DataGenerator.generatePhone("ru");
+        SelenideElement form = $(".form");
+        form.$("[data-test-id=city] input").setValue(validCity);
+        form.$("[data-test-id=date] input").sendKeys(Keys.CONTROL + "A");
+        form.$("[data-test-id=date] input").sendKeys(Keys.BACK_SPACE);
+        form.$("[data-test-id=date] input").setValue(firstMeetingDate);
+        form.$("[data-test-id=name] input").setValue(validName);
+        form.$("[data-test-id=phone] input").setValue(validPhone);
+        form.$("[data-test-id=agreement]").click();
+        form.$(".button").click();
+        $(withText("Успешно!")).shouldBe(visible, Duration.ofSeconds(15));
+        $$(".notification__content").first()
+                .shouldHave(Condition.text("Встреча успешно запланирована на " + firstMeetingDate), Duration.ofSeconds(15))
+                .shouldBe(Condition.visible);
+        form.$(".icon-button_theme_alfa-on-white").click();
+        form.$("[data-test-id=date] input").sendKeys(Keys.CONTROL + "A");
+        form.$("[data-test-id=date] input").sendKeys(Keys.BACK_SPACE);
+        form.$("[data-test-id=date] input").setValue(secondMeetingDate);
+        $$(".calendar__day").find(exactText(DataGenerator.generateDate(daysToAddForSecondMeeting, "d"))).click();
+        form.$(".button").click();
+        $(withText("Необходимо подтверждение")).shouldBe(visible, Duration.ofSeconds(15));
+        $$(".notification__content").get(1)
+                .shouldHave(Condition.text("У вас уже запланирована встреча на другую дату. Перепланировать?"), Duration.ofSeconds(15))
+                .shouldBe(Condition.visible);
+        $("[data-test-id=replan-notification] .button").click();
+        $(withText("Успешно!")).shouldBe(visible, Duration.ofSeconds(15));
+        $("[data-test-id='success-notification'] .notification__content")
+                .shouldHave(Condition.text("Встреча успешно запланирована на " + secondMeetingDate), Duration.ofSeconds(15))
+                .shouldBe(Condition.visible);
+    }
+}
+
